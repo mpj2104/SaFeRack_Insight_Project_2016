@@ -9,21 +9,22 @@ import datetime
 import time
 
 ## Let's build the KDE for the crime incidents in the nearby vicinity of a destination
-
 def analyze_crime_kde(crime_coords,weighted,crime_unix_times):
 
     # Let's mark the coordinates for the edge of the map first
     lon_lat_box = (sorted(crime_coords, key=lambda tup: tup[1])[0][1], sorted(crime_coords, key=lambda tup: tup[1])[-1][1], sorted(crime_coords, key=lambda tup: tup[0])[0][0], sorted(crime_coords, key=lambda tup: tup[0])[-1][0])
     clipsize = [[sorted(crime_coords, key=lambda tup: tup[1])[0][1], sorted(crime_coords, key=lambda tup: tup[1])[-1][1]],[sorted(crime_coords, key=lambda tup: tup[0])[0][0], sorted(crime_coords, key=lambda tup: tup[0])[-1][0]]]
 
-    # Evaluating the KDE
+    # Create the training dataset
     m_x = [i[1] for i in crime_coords]
     m_y = [i[0] for i in crime_coords]
     train_data = np.vstack([m_x, m_y])
+    
+    # Calculate the KDE based on the training dataset, either using weights or no weights
     if weighted == True:
         weights_time = calculate_recency_weights(crime_unix_times)
-        #kernel = wKDE.gaussian_kde(train_data, weights=weights_time, bw_method='scott') # from custom online
-        kernel = wKDE.gaussian_kde(train_data, weights=weights_time, bw_method=0.2) # from custom online
+        #kernel = wKDE.gaussian_kde(train_data, weights=weights_time, bw_method='scott') # Scott method
+        kernel = wKDE.gaussian_kde(train_data, weights=weights_time, bw_method=0.2) # choose bandwidth
     else:
         kernel = scipy.stats.gaussian_kde(train_data, bw_method='scott') # from scipy.stats
 
@@ -45,8 +46,9 @@ def analyze_crime_kde(crime_coords,weighted,crime_unix_times):
     
     return (kde,kernel)
 
+# Let's calculate the weights for the KDE based on the recency of the crime
 def calculate_recency_weights(crime_unix_times):
-    ## Let's add some weights based on recency of the event
+    ## Establish the current time (when the user clicks "Find" on the app)
     now_time = datetime.datetime.now()
     now_time_unix = time.mktime(now_time.timetuple())
 
@@ -69,36 +71,26 @@ def calculate_recency_weights(crime_unix_times):
     
     return weights_time
 
+# Let's apply the KDE to the bike racks now
 def apply_kde_to_racks(kde,kernel,rack_coords):
+    # Build up the parking racks dataset
     p_x = [i[1] for i in rack_coords]
     p_y = [i[0] for i in rack_coords]
     park_data = np.vstack([p_x, p_y])
     
-    # normalize kde values
+    # Scale the KDE values to 1 to 100
     kde_norm = (99*((kde-min(kde))/(max(kde)-min(kde))))+1 # rescales the KDE values to 1 to 100
-    kde_norm_log = 1+99*(np.log10(kde_norm)/2) # rescales the log of the KDE values to 1 to 100
     
+    # Get the KDE values of the bike racks
     kde_parking = kernel(park_data)
     
-    #total_PDF = sum(sum(z))
-    #mean_PDF = np.mean(np.mean(z))
-    
-    #risk_scores = 100*((kde_parking-mean_PDF)/mean_PDF)
-    #risk_scores = (99*((risk_scores-min(risk_scores))/(max(risk_scores)-min(risk_scores))))+1
+    # Convert the bike rack KDE values to risk scores
     risk_scores_norm = (99*((kde_parking-min(kde))/(max(kde)-min(kde))))+1 # rescales parking values to KDE scale of 1 to 100
-    risk_scores_norm_log = 1+99*(np.log10(risk_scores_norm)/2) # rescales parking values to same scale as log of KDE
+    risk_scores_norm_log = 1+99*(np.log10(risk_scores_norm)/2) # rescales on a log scale to convert the heavily right skewed distribution to a normal one
+    
+    # Create coarser risk levels from risk scores for color-coding
     risk_levels = []
     for score in risk_scores_norm_log:
-#        if (score >= np.percentile(kde_norm,90)):
-#            risk_levels.append(5)
-#        elif (score >= np.percentile(kde_norm,70)) and (score < np.percentile(kde_norm,90)):
-#            risk_levels.append(4)
-#        elif (score >= np.percentile(kde_norm,50)) and (score < np.percentile(kde_norm,70)):
-#            risk_levels.append(3)
-#        elif (score >= np.percentile(kde_norm,30)) and (score < np.percentile(kde_norm,50)):
-#            risk_levels.append(2)
-#        elif (score >= np.percentile(kde_norm,0)) and (score < np.percentile(kde_norm,30)):
-#            risk_levels.append(1)
         if (score >= 80):
             risk_levels.append(5)
         elif (score >= 60) and (score < 80):
@@ -112,17 +104,19 @@ def apply_kde_to_racks(kde,kernel,rack_coords):
     
     return (risk_scores_norm_log,risk_levels,kde_parking)
 
+# Let's recommend a bike rack using a weighted average algorithm
 def recommend_parking(risk_scores,risk_levels,rack_coords,dist_from_dest,preference):
-    # closest parking space
+    # what's the closest parking space
     closest_idx = dist_from_dest.index(min(dist_from_dest),0)
     closest_score = risk_scores[closest_idx]
     closest_coords = rack_coords[closest_idx]
     
+    # what are the candidate bike racks (ones that are lower in risk score than the closest rack)
     candidate_scores = risk_scores[np.where(risk_scores <= closest_score)]
     candidate_dists = np.array(dist_from_dest)[np.where(risk_scores <= closest_score)]
     candidate_coords = np.array(rack_coords)[np.where(risk_scores <= closest_score)]
         
-    # Scale the features
+    # Rescale the feature values to be between 0 and 1
     candidate_dists = np.asarray(candidate_dists)
     candidate_scores = np.asarray(candidate_scores)
     print(len(candidate_dists))
@@ -137,13 +131,12 @@ def recommend_parking(risk_scores,risk_levels,rack_coords,dist_from_dest,prefere
     A = int(preference) # (1 = only care about how close the rack is, 0 = only care about how safe the rack is)
     B = 100-A
     decision_score = A*candidate_dists_norm + B*candidate_scores_norm
-    chosen_idx = np.where(decision_score==max(decision_score))[0][0]
     
-    # What to extract from this chosen space and output
+    # Find the chosen one!
+    chosen_idx = np.where(decision_score==max(decision_score))[0][0]
     chosen_score = candidate_scores[chosen_idx]
     chosen_change_in_distance = candidate_dists[chosen_idx] - min(dist_from_dest)
     chosen_coords = candidate_coords[chosen_idx]
     
     return (chosen_coords,chosen_score,chosen_change_in_distance,closest_coords,closest_score)
                        
- 
