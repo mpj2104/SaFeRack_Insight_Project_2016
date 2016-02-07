@@ -4,9 +4,11 @@ import pandas as pd
 import numpy as np
 from geopy.distance import vincenty
 
+# Name of the sqlite3 database
 database_name = 'SF_bike_parking.db'
 engine = create_engine('sqlite:///:' + database_name + ':')
 
+# Grab the coordinates of the bike racks
 def get_parking_coords(starting_coordinates,radius):
     # Get the parking spaces data
     table_name = 'SF_bike_parking'
@@ -20,7 +22,7 @@ def get_parking_coords(starting_coordinates,radius):
     parking_address = []
     dist_from_dest = []
     radius_racks = radius # in miles
-    space_count_in_crime_area = 0
+    space_count_in_crime_area = 0 # keep track of the total number of racks in the local region defined
     for index, row in df_parking.ix[0:].iterrows():
         if (vincenty(starting_coordinates, [row['Y'],row['X']]).miles <= radius_racks):
             rack_coords.append([row['Y'],row['X']])
@@ -37,15 +39,14 @@ def get_parking_coords(starting_coordinates,radius):
 
     return (rack_coords, num_racks, num_spaces, dist_from_dest, parking_address, space_count_in_crime_area)
 
+# Grab the coordinates of the crimes that fit within the user-indicated parameters
 def get_crime_coords(starting_coordinates,arrival_time):
     # Get the bike theft data
     table_name = 'SF_aggregate_stolen_bikes'
-    
     if (arrival_time >= 0) and (arrival_time < 12):
         sql_query = 'SELECT Y,X,Date,Descript,Time,merged_time,Year FROM ' + table_name + ' WHERE (Year < 2016) AND (cum_minutes_day > ' + str(arrival_time) + '*60 AND cum_minutes_day <= ' + str(arrival_time) + '*60+12*60) AND (PdDistrict <> \'None\')'
     elif (arrival_time >= 12) and (arrival_time < 24):
         sql_query = 'SELECT Y,X,Date,Descript,Time,merged_time,Year FROM ' + table_name + ' WHERE (Year < 2016) AND (cum_minutes_day > ' + str(arrival_time) + '*60 OR cum_minutes_day <= ' + str(arrival_time) + '*60-12*60) AND (PdDistrict <> \'None\')'
-    
     df_thefts = pd.read_sql_query(sql_query,engine)
     
     # Calculate distances to list of crimes and filter by crimes within radius
