@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+  <title>{{title}}</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="//cdn.leafletjs.com/leaflet-0.5.1/leaflet.css" />
+  <link rel="stylesheet" href="/static/css/ribbon.css" />
+  <link rel="stylesheet" href="../static/css/leaflet.awesome-markers.css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+  <style type="text/css">
+    body {
+        padding: 0;
+        margin: 0;
+    }
+    html, body, #map {
+        height: 100%;
+        font-family: 'Raleway', cursive;
+    }  
+    .leaflet-container .leaflet-control-zoom {
+        margin-left: 13px;
+        margin-top: 70px;
+    }
+    #map { z-index: 1;}
+    #title { z-index: 2; position: absolute; left: 10px; top: 450px}
+  </style>
+    
+  <!-- Map Legend CSS -->
+  <link rel="stylesheet" href="../static/css/map_legend.css">
+    
+  <!-- Fonts CSS -->
+  <link href='//fonts.googleapis.com/css?family=Raleway' rel='stylesheet' type='text/css'>
+</head>
+    
+<body>
+  <!--<h1 id="title" style="color:#DE7600;background-color:rgba(255,255,255,0.75);border-radius: 5px;padding: 5px;" ><a href="http://127.0.0.1:5000/input" style="text-decoration: none;color:#DE7600;">{{title}}</a></h1>-->
+  <h1 id="title"><a href="http://127.0.0.1:5000/input"><img src="../static/images/SafeRackLogo.png" style="position: fixed;left:8px;bottom:22px;width:128px;height:128px;background-color:rgba(255,255,255,0.7);border-radius: 10px;padding: 3px"/></a></h1>
+  <div id="map"></div> 
+    
+  <!-- Bootstrap core JavaScript
+  ================================================== -->
+  <!-- Placed at the end of the document so the pages load faster -->
+  <!-- <script src="../../dist/js/bootstrap.min.js"></script> -->
+  <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+  <!--<script src="../../assets/js/ie10-viewport-bug-workaround.js"></script>-->
+  <!-- jQuery -->
+  <script src="//code.jquery.com/jquery-2.0.0.min.js"></script>
+  <!-- Leaflet -->
+  <script src="//cdn.leafletjs.com/leaflet-0.5.1/leaflet.js"></script>
+  <script src="../static/js/leaflet.awesome-markers.js"></script>
+</body>
+    
+  <script>
+    // These are markers special made for the bike racks, colored by risk
+    var darkredMarker = L.AwesomeMarkers.icon({
+      markerColor: 'darkred'
+    });
+    var redMarker = L.AwesomeMarkers.icon({
+      markerColor: 'red'
+    });
+    var orangeMarker = L.AwesomeMarkers.icon({
+      markerColor: 'orange'
+    });
+    var orangeMarker = L.AwesomeMarkers.icon({
+      markerColor: 'orange'
+    });
+    var beigeMarker = L.AwesomeMarkers.icon({
+      markerColor: 'beige'
+    });
+    var grayMarker = L.AwesomeMarkers.icon({
+      markerColor: 'gray'
+    });
+    var lightblueMarker = L.AwesomeMarkers.icon({
+      markerColor: 'lightblue'
+    });
+    var blueMarker = L.AwesomeMarkers.icon({
+      markerColor: 'blue'
+    });
+    var darkblueMarker = L.AwesomeMarkers.icon({
+      markerColor: 'darkblue'
+    });
+    var greenLeaf = L.icon({
+      iconUrl: '../static/images/leaf-green.png',
+      iconSize: [38,95],
+      iconAnchor: [22,115],
+      popupAnchor: [1,-75]
+    });
+    
+    // Plant the bike rack coordinates
+    var rack_points = {{ rack_coords | safe }};
+
+    var rackArray_high = new Array()
+    var rackArray_low = new Array()
+    for (var i = 0; i < {{rack_counts}}; i++) {
+        datum = rack_points[i];
+        if (datum['risk_level'] == 5) { var icon_color = darkredMarker; }
+        else if (datum['risk_level'] == 4) { var icon_color = redMarker; }
+        else if (datum['risk_level'] == 3) { var icon_color = beigeMarker; }
+        else if (datum['risk_level'] == 2) { var icon_color = blueMarker; }
+        else if (datum['risk_level'] == 1) { var icon_color = darkblueMarker; }
+        
+        if (datum['risk_level'] > 3) {rackArray_high.push(L.marker(
+            [datum['lat'], datum['lon']],
+            {
+              icon: icon_color
+            }).bindPopup("<center>" + datum['parking_address'] + "</center><center>" + datum['dist_from_dest'] + " miles away</center><br>Number of Racks: " + datum['num_racks'] + "<br>Number of Spaces: " + datum['num_spaces'] + "<br><br>" + "<center>Local Risk Score</center><center>" + Math.abs(datum['risk_score']) + " out of 100</center>"));
+                                     }
+        else if (datum['risk_level'] <= 3) {rackArray_low.push(L.marker(
+            [datum['lat'], datum['lon']],
+            {
+              icon: icon_color
+            }).bindPopup("<center>" + datum['parking_address'] + "</center><center>" + datum['dist_from_dest'] + " miles away</center><br>Number of Racks: " + datum['num_racks'] + "<br>Number of Spaces: " + datum['num_spaces'] + "<br><br>" + "<center>Local Risk Score</center><center>" + Math.abs(datum['risk_score']) + " out of 100</center>"));
+                                           }
+    }
+    var bike_racks_high = L.layerGroup(rackArray_high);
+    var bike_racks_low = L.layerGroup(rackArray_low);
+    
+    // Plant the crime coordinates
+    var crime_points_2015 = {{ crime_coords_2012to2015 | safe }};
+    var crime_points_2010 = {{ crime_coords_2008to2011 | safe }};
+    var crime_points_2005 = {{ crime_coords_2003to2007 | safe }};
+    var crimeArray_2015 = new Array({{ counts_2012to2015 }})
+    var crimeArray_2010 = new Array({{ counts_2008to2011 }})
+    var crimeArray_2005 = new Array({{ counts_2003to2007 }})
+    
+    for (var i = 0; i < {{ counts_2012to2015 }}; i++) {
+        datum1 = crime_points_2015[i];
+        crimeArray_2015[i] = L.circle(
+                [datum1['lat'], datum1['lon']],
+                20,
+                {
+                    color: 'red',
+                    fillColor: 'red',
+                    fillOpacity: 0.1
+                }).bindPopup(datum1['crime_descripts']);
+    }
+    var crimes_2015 = L.layerGroup(crimeArray_2015);
+    
+    for (var i = 0; i < {{ counts_2008to2011 }}; i++) {
+        datum2 = crime_points_2010[i];
+        crimeArray_2010[i] = L.circle(
+                [datum2['lat'], datum2['lon']],
+                20,
+                {
+                    color: 'orange',
+                    fillColor: 'orange',
+                    fillOpacity: 0.1
+                }).bindPopup(datum2['crime_descripts']);
+    }
+    var crimes_2010 = L.layerGroup(crimeArray_2010);
+    
+    for (var i = 0; i < {{ counts_2003to2007 }}; i++) {
+        datum3 = crime_points_2005[i];
+        crimeArray_2005[i] = L.circle(
+                [datum3['lat'], datum3['lon']],
+                20,
+                {
+                    color: 'yellow',
+                    fillColor: 'yellow',
+                    fillOpacity: 0.1
+                }).bindPopup(datum3['crime_descripts']);
+    }
+    var crimes_2005 = L.layerGroup(crimeArray_2005);
+    
+    // Source of the map  
+    var Esri_NatGeoWorldMap = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {attribution: 'Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC',maxZoom: 16
+    });
+    
+    // Make the map object now 
+    var map = L.map('map', {
+        center: {{starting_coordinates}},
+        zoom: {{zoom_start}},
+        layers: [Esri_NatGeoWorldMap, bike_racks_high, bike_racks_low]
+    });
+    var baseMaps = {
+        "Standard": Esri_NatGeoWorldMap
+    };
+    var overlayMaps = {
+        "Bike Racks (higher risk)": bike_racks_high,
+        "Bike Racks (lower risk)": bike_racks_low,
+        "Bike Thefts (2012-2015)": crimes_2015,
+        "Bike Thefts (2008-2011)": crimes_2010,
+        "Bike Thefts (2003-2007)": crimes_2005
+    };
+      
+    // Add the recommended parking space coordinate
+    var geojsonMarkerOptions = {
+        radius: 20,
+        fillColor: "#2EFC5E",
+        color: "#000",
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.8
+    };
+    var recommended_points = {{ recommended_coords | safe }};
+    datum4 = recommended_points[0];
+    
+//    if (datum4['chosen_is_closest'] == 1) {L.circleMarker([datum4['lat'], datum4['lon']],geojsonMarkerOptions).addTo(map).bindPopup("This is the closest parking space.");}
+//    else if (datum4['chosen_is_closest'] == 0) {L.circleMarker([datum4['lat'], datum4['lon']],geojsonMarkerOptions).addTo(map).bindPopup("<center>By walking an extra <b><i>" + datum4['added_dist'] + " miles</i></b>, you discover a rack with a local risk score <b><i>" + Math.round(Math.abs(100*(datum4['chosen_score']-datum4['closest_score'])/datum4['closest_score'])) + "</i></b>% below that of the closest rack.</center>");}
+    
+    if (datum4['chosen_is_closest'] == 1) {L.marker([datum4['lat'], datum4['lon']],{icon: greenLeaf}).addTo(map).bindPopup("This is the closest parking space.");}
+    else if (datum4['chosen_is_closest'] == 0) {L.marker([datum4['lat'], datum4['lon']],{icon: greenLeaf}).addTo(map).bindPopup("<center>The Chosen Rack</center><br><center>By walking an extra <b><i>" + datum4['added_dist'] + " miles</i></b>, you find a rack with a local risk score <b><i>" + Math.round(Math.abs(100*(datum4['chosen_score']-datum4['closest_score'])/datum4['closest_score'])) + "</i></b>% below that of the closest rack.</center>");}
+    
+    // Add the layers to the map
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+    
+    // Add local area radius of 0.75 miles
+    var circle = L.circle({{starting_coordinates}}, 1240, {
+        color: '#A6E7F7',
+        fillColor: '#A6E7F7',
+        fillOpacity: 0.3
+    }).addTo(map).bringToBack();
+      
+    // Add the destination coordinate
+    var rate_ratio = Math.round(100*({{crime_per_space_local}}-{{crime_per_space_SF}})/{{crime_per_space_SF}})
+    if (rate_ratio == 0) {L.marker({{starting_coordinates}}).addTo(map).bindPopup("<center>Your destination is:</center><br><center><b>{{address}}</b></center><br><center>The local reported bike theft crimes per bike space rate is <b>the same</b> as the SF-wide rate.</center><center>(2015 only)</center>").openPopup();}
+    else if (rate_ratio > 0) {L.marker({{starting_coordinates}}).addTo(map).bindPopup("<center>Your destination is:</center><br><center><b>{{address}}</b></center><br><center>The local reported bike theft crimes per bike space rate is <b>" + rate_ratio + "%</b> above the SF-wide rate.</center><center>(2015 only)</center>").openPopup();}
+    else if (rate_ratio < 0) {L.marker({{starting_coordinates}}).addTo(map).bindPopup("<center>Your destination is:</center><br><center><b>{{address}}</b></center><br><center>The local reported bike theft crimes per bike space rate is <b>" + Math.abs(rate_ratio) + "%</b> below the SF-wide rate.</center><center>(2015 only)</center>").openPopup();}
+      
+    // Finally, add the legend 
+    function getColour(d) {
+        switch (d) {
+//            case '1': return '#02669C';
+//            case '2': return '#38AAE0';
+//            case '3': return '#8DD8FF';
+//            case '4': return '#545857';
+//            case '5': return '#FD962B';
+//            case '6': return '#D73D2D';
+//            case '7': return '#A03637';
+              case '1': return '#02669C';
+              case '2': return '#38AAE0';
+              case '3': return '#FECA94';
+              case '4': return '#D73D2D';
+              case '5': return '#A03637';
+            default: return '#fff';
+        }
+    };
+    
+    var legend = L.control({position: 'bottomright'});
+    legend.onAdd = function(map) {
+        var div = L.DomUtil.create('div', 'info legend');
+            riskstatus = ['5','4','3','2','1'],
+            //labels = ['2.5x more likely and above','2x more likely','1.5x more likely','Average','1.5x less likely','2x less likely','2.5x less likely and below'];
+            labels = ['high','medium-high','medium','medium-low','low'];
+
+        div.innerHTML += '<b>Local Risk Level</b><br>'  // don't forget the break tag
+        
+        // loop through the status values and generate a label with a coloured square for each value
+        for (var i = 0; i < riskstatus.length; i++) {
+            div.innerHTML +=
+                '<i class="circle" style="background:' + getColour(riskstatus[i]) + '"></i> ' + (labels[i] ? labels[i] + '<br>' : '+');
+        }
+        return div;
+    };
+    legend.addTo(map);                       
+  </script>
+</html>
