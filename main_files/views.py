@@ -18,24 +18,30 @@ import json
 
 @app.route('/')
 
+# the input action
 @app.route('/input')
 def destination_input():
     return render_template("input.html")
 
+# the alternate input action (when a non-SF address is inputted)
 @app.route('/input_alt')
 def destination_input_alt():
     return render_template("input_alt.html")
 
+# the presentation page
 @app.route('/presentation')
 def destination_presentation():
     return render_template("presentation.html")
 
+# the output page
 @app.route('/output')
 def destination_output():
     # pull 'destination' from input field and store it
     destination = request.args.get('destination')
+    # in case no 'destination' was entered
     if not destination:
         return render_template("input.html")
+    # grab other user inputs
     radius = request.args.get('radius')
     preference = request.args.get('preference_level')
     arrival_time_hour = int(request.args.get('arrival_time_hour'))
@@ -68,9 +74,10 @@ def destination_output():
     # get crime coordinates
     [crime_coords, crime_dates, crime_times, dest_to_crimes, crime_unix_times, crime_coords_2012to2015, crime_coords_2008to2011, crime_coords_2003to2007,crime_descripts_2012to2015,crime_descripts_2008to2011,crime_descripts_2003to2007,crime_counts_2015,SF_wide_crime_counts_2015] = GD.get_crime_coords(starting_coordinates, arrival_time)
     
-    if not crime_coords:
+    if not crime_coords: # in case a non-SF address is entered
         return render_template("input_alt.html")
     else:
+        # create the crime output information
         crime_output = []
         for idx,coord in enumerate(crime_coords):
             datum = {
@@ -81,7 +88,8 @@ def destination_output():
                     "dist_from_dest": str(dest_to_crimes[idx]),
                     }
             crime_output.append(datum)
-
+        
+        # segment the crimes into different groups of years for the output layering
         crime_2012to2015 = []
         for idx,coord in enumerate(crime_coords_2012to2015):
             datum = {
@@ -109,12 +117,14 @@ def destination_output():
                     }
             crime_2003to2007.append(datum)
 
-        # analyze KDE (weighted --> (crime_coords,True,crime_unix_times), unweighted --> (crime_coords,False,0))
+        # analyze the KDE (weighted --> (crime_coords,True,crime_unix_times), unweighted --> (crime_coords,False,0))
         [kde,kernel] = AD.analyze_crime_kde(crime_coords,True,crime_unix_times) 
         #[z,kernel] = AD.analyze_crime_kde(crime_coords,False,0)
 
-        # get parking coordinates
+        # get the parking coordinates
         [rack_coords,num_racks,num_spaces,dist_from_dest,parking_address,space_count_in_crime_area] = GD.get_parking_coords(starting_coordinates,float(radius))
+        
+        # get the risk scores and risk levels of the parking spots
         [risk_scores,risk_levels,_] = AD.apply_kde_to_racks(kde,kernel,rack_coords)
         rack_output = []
         for idx,coord in enumerate(rack_coords):
@@ -130,7 +140,7 @@ def destination_output():
                     }
             rack_output.append(datum)
 
-        # get recommended coordinates
+        # get the chosen rack coordinates!
         [chosen_coords,chosen_score,chosen_change_in_distance,closest_coords,closest_score] = AD.recommend_parking(risk_scores,risk_levels,rack_coords,dist_from_dest,preference)
         chosen_is_closest = 0
         if (chosen_coords[0]==closest_coords[0]) and (chosen_coords[1]==closest_coords[1]):
@@ -148,10 +158,8 @@ def destination_output():
                 }
         recommended_output.append(datum)
 
-        # ratio for local area
+        # crime rates for the local and SF-wide regions (for relative comparison)
         crime_per_space_local = round(crime_counts_2015/space_count_in_crime_area,2)
-        
-        # ratio for SF
-        crime_per_space_SF = round(SF_wide_crime_counts_2015/6755,2)
+        crime_per_space_SF = round(SF_wide_crime_counts_2015/6755,2) # 6755 is the hard-coded total number of parking racks in SF
 
         return render_template("output.html", starting_coordinates = starting_coordinates, zoom_start = zoom_start, title = 'SaFeRack', address = address, rack_coords = rack_output, crime_coords = crime_output, rack_counts = len(rack_output), crime_counts = len(crime_output), recommended_coords = recommended_output, crime_coords_2012to2015 = crime_2012to2015, counts_2012to2015 = len(crime_2012to2015), crime_coords_2008to2011 = crime_2008to2011, counts_2008to2011 = len(crime_2008to2011), crime_coords_2003to2007 = crime_2003to2007, counts_2003to2007 = len(crime_2003to2007), crime_per_space_local = str(crime_per_space_local),crime_per_space_SF = str(crime_per_space_SF))
