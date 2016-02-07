@@ -196,10 +196,12 @@
     };
     var recommended_points = {{ recommended_coords | safe }};
     datum4 = recommended_points[0];
-    
+
+    // circle marker
 //    if (datum4['chosen_is_closest'] == 1) {L.circleMarker([datum4['lat'], datum4['lon']],geojsonMarkerOptions).addTo(map).bindPopup("This is the closest parking space.");}
 //    else if (datum4['chosen_is_closest'] == 0) {L.circleMarker([datum4['lat'], datum4['lon']],geojsonMarkerOptions).addTo(map).bindPopup("<center>By walking an extra <b><i>" + datum4['added_dist'] + " miles</i></b>, you discover a rack with a local risk score <b><i>" + Math.round(Math.abs(100*(datum4['chosen_score']-datum4['closest_score'])/datum4['closest_score'])) + "</i></b>% below that of the closest rack.</center>");}
     
+    // leaf marker for chosen rack
     if (datum4['chosen_is_closest'] == 1) {L.marker([datum4['lat'], datum4['lon']],{icon: greenLeaf}).addTo(map).bindPopup("This is the closest parking space.");}
     else if (datum4['chosen_is_closest'] == 0) {L.marker([datum4['lat'], datum4['lon']],{icon: greenLeaf}).addTo(map).bindPopup("<center>The Chosen Rack</center><br><center>By walking an extra <b><i>" + datum4['added_dist'] + " miles</i></b>, you find a rack with a local risk score <b><i>" + Math.round(Math.abs(100*(datum4['chosen_score']-datum4['closest_score'])/datum4['closest_score'])) + "</i></b>% below that of the closest rack.</center>");}
     
@@ -222,13 +224,6 @@
     // Finally, add the legend 
     function getColour(d) {
         switch (d) {
-//            case '1': return '#02669C';
-//            case '2': return '#38AAE0';
-//            case '3': return '#8DD8FF';
-//            case '4': return '#545857';
-//            case '5': return '#FD962B';
-//            case '6': return '#D73D2D';
-//            case '7': return '#A03637';
               case '1': return '#02669C';
               case '2': return '#38AAE0';
               case '3': return '#FECA94';
@@ -242,7 +237,6 @@
     legend.onAdd = function(map) {
         var div = L.DomUtil.create('div', 'info legend');
             riskstatus = ['5','4','3','2','1'],
-            //labels = ['2.5x more likely and above','2x more likely','1.5x more likely','Average','1.5x less likely','2x less likely','2.5x less likely and below'];
             labels = ['high','medium-high','medium','medium-low','low'];
 
         div.innerHTML += '<b>Local Risk Level</b><br>'  // don't forget the break tag
